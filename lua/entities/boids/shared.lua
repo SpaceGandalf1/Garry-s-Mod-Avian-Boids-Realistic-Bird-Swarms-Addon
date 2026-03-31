@@ -5,30 +5,39 @@ ENT.Author    = "Nayl"
 ENT.Spawnable = true
 ENT.Category  = "Boids"
 
+-- The absolute animation dictionary for all 3 models
+ENT.BoidAnimations = {
+    ["models/crow.mdl"] = { fly = "fly01", idle = "idle01", takeoff = "Takeoff", land = "Land", soar = "Soar" },
+    ["models/pigeon.mdl"] = { fly = "fly01", idle = "idle01", takeoff = "Takeoff", land = "Land", soar = "Soar" },
+    
+    -- Seagulls don't have takeoff/land/soar, so we map them to 'fly' to prevent T-posing
+    ["models/seagull.mdl"] = { fly = "fly", idle = "idle01", takeoff = "fly", land = "fly", soar = "fly" }
+}
+
+function ENT:GetBoidAnim(animType)
+    local mdl = string.lower(self:GetModel() or "")
+    mdl = string.Replace(mdl, "\\", "/") -- Ensure slashes match exactly
+    
+    local anims = self.BoidAnimations[mdl]
+    if anims and anims[animType] then
+        return anims[animType]
+    end
+    
+    -- Absolute fallback just in case of custom models
+    if animType == "idle" then return "idle01" end
+    return "fly01"
+end
+
 function ENT:SetupDataTables()
     self:NetworkVar("Bool", false, "Dead")
 end
 
-local function ShotCatch( ent, data )
-    --[[ PrintTable( data )
-
-    print(data.Trace.Fraction) ]]
-
-    -- debugoverlay.Box( data.Trace.StartPos, Vector(-1,-1,-1), Vector(1,1,1), 1, color_white)
-    -- debugoverlay.Line(data.Trace.StartPos, data.Trace.HitPos, 1, Color(255,255,255), false)
-
-    for k, v in next, ents.FindByClass("boids") do
-        if v.dead then continue end
-        local rayDelta = data.Trace.HitPos - data.Trace.StartPos
-        local inter = util.IntersectRayWithOBB( data.Trace.StartPos, rayDelta, v:GetPos(), Angle(), v:OBBMins(), v:OBBMaxs() )
-
-        if not inter then continue end
-
-        if SERVER then
-            v:SetDead( true )
-            v:Remove()
-        end
-
-    end
+-- FIX: Intercept and silence Server-side animation events
+function ENT:HandleAnimEvent( event, eventTime, cycle, type, options )
+    return true 
 end
-hook.Add( "PostEntityFireBullets", "BoidsShotCatch", ShotCatch)
+
+-- FIX: Intercept and silence Client-side animation events (Stops the console spam!)
+function ENT:FireAnimationEvent( pos, ang, event, options )
+    return true
+end
