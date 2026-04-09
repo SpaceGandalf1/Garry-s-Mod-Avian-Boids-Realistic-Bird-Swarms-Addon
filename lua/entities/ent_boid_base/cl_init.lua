@@ -38,12 +38,12 @@ function ENT:GenerateGhosts()
         cboid:ResetSequence(defaultAnim)
         
         cboid:SetCycle( math.Rand(0,1) )
-        if self.GhostDistUniform() then
+        if self.GhostDistUniform and self.GhostDistUniform() then
             cboid.dir = rand_vec:GetNormalized()
         else
             cboid.dir = rand_vec * math.Rand(0,1) + rand_vec
         end
-        cboid.pos = self:GetPos() + cboid.dir * self.GhostDist()
+        cboid.pos = self:GetPos() + cboid.dir * (self.GhostDist and self.GhostDist() or 50)
     end
 end
 
@@ -107,7 +107,7 @@ function ENT:Think()
         
         cboid:SetPlaybackRate(parentRate)
 
-        local targetPos = self:GetPos() + cboid.dir * self.GhostDist()
+        local targetPos = self:GetPos() + cboid.dir * (self.GhostDist and self.GhostDist() or 50)
         cboid.pos = LerpVector(FrameTime() * 3, cboid.pos, targetPos)
 
         cboid:SetPos( cboid.pos )

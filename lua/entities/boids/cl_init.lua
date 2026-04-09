@@ -1,8 +1,8 @@
 include("shared.lua")
 
 function ENT:CustomInitialize()
-    self.GhostAmount = function() return GetConVar("cl_boids_ghost_amount"):GetInt() end
-    self.GhostDist = function() return GetConVar("cl_boids_ghost_distances"):GetInt() end
-    self.GhostDistUniform = function() return GetConVar("cl_boids_ghost_distances_uniform"):GetBool() end
-    self.BaseSpeed = function() return GetConVar("sv_boids_speed"):GetFloat() end
+    self.GhostAmount = function() local cv = GetConVar("cl_boids_ghost_amount"); return cv and cv:GetInt() or 0 end
+    self.GhostDist = function() local cv = GetConVar("cl_boids_ghost_distances"); return cv and cv:GetInt() or 50 end
+    self.GhostDistUniform = function() local cv = GetConVar("cl_boids_ghost_distances_uniform"); return cv and cv:GetBool() or true end
+    self.BaseSpeed = function() local cv = GetConVar("sv_boids_speed"); return cv and cv:GetFloat() or 600 end
 end

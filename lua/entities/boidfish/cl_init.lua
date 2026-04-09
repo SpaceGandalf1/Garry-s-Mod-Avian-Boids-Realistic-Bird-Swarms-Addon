@@ -1,10 +1,10 @@
 include("shared.lua")
 
 function ENT:CustomInitialize()
-    self.GhostAmount = function() return GetConVar("cl_boidfish_ghost_amount"):GetInt() end
-    self.GhostDist = function() return GetConVar("cl_boidfish_ghost_distances"):GetInt() end
-    self.GhostDistUniform = function() return GetConVar("cl_boidfish_ghost_distances_uniform"):GetBool() end
-    self.BaseSpeed = function() return GetConVar("sv_boidfish_speed"):GetFloat() end
+    self.GhostAmount = function() local cv = GetConVar("cl_boidfish_ghost_amount"); return cv and cv:GetInt() or 0 end
+    self.GhostDist = function() local cv = GetConVar("cl_boidfish_ghost_distances"); return cv and cv:GetInt() or 50 end
+    self.GhostDistUniform = function() local cv = GetConVar("cl_boidfish_ghost_distances_uniform"); return cv and cv:GetBool() or true end
+    self.BaseSpeed = function() local cv = GetConVar("sv_boidfish_speed"); return cv and cv:GetFloat() or 300 end
 end
 
 function ENT:CustomMakeRagdoll()
@@ -13,7 +13,8 @@ function ENT:CustomMakeRagdoll()
         prop:SetPos(self:GetPos())
         prop:SetAngles(self:GetAngles())
         
-        local velocity = self:GetForward() * (GetConVar("sv_boidfish_speed"):GetFloat() * 0.5)
+        local spd = GetConVar("sv_boidfish_speed")
+        local velocity = self:GetForward() * (spd and spd:GetFloat() * 0.5 or 150)
         local targetAng = Angle(math.random(-30, 30), math.random(-180, 180), 180)
         
         hook.Add("Think", prop, function()

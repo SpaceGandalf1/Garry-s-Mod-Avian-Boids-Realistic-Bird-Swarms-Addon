@@ -1,6 +1,0 @@
-include("lua/autorun/sh_boid_math.lua")
-include("lua/autorun/server/sv_boid_grid.lua")
-include("lua/entities/ent_boid_base/shared.lua")
-include("lua/entities/ent_boid_base/cl_init.lua")
-include("lua/entities/ent_boid_base/init.lua")
-print("Syntax OK")
