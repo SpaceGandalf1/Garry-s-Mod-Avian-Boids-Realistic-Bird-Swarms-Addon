@@ -293,7 +293,8 @@ function ENT:SpawnFunction(ply, tr, ClassName)
     local spawnPos = tr.HitPos + tr.HitNormal * 30
     
     if bit.band(util.PointContents(spawnPos), CONTENTS_WATER) != CONTENTS_WATER then
-        ply:ChatPrint("The Ichthyosaur must be spawned in deep water!")
+        local msg = "The Ichthyosaur must be spawned in deep water!"
+        if IsValid(ply) then ply:ChatPrint(msg) else print(msg) end
         return
     end
 

@@ -142,7 +142,8 @@ function ENT:SpawnFunction(ply, tr, ClassName)
     local spawnPos = tr.HitPos + tr.HitNormal * 30
     
     if bit.band(util.PointContents(spawnPos), CONTENTS_WATER) != CONTENTS_WATER then
-        ply:ChatPrint("Fish must be spawned in the water!")
+        local msg = "Fish must be spawned in the water!"
+        if IsValid(ply) then ply:ChatPrint(msg) else print(msg) end
         return
     end
 
