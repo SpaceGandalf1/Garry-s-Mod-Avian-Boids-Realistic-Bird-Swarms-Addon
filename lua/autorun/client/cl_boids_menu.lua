@@ -224,7 +224,7 @@ hook.Add( "PopulateToolMenu", "CustomMenuSettingsBoidsAndFish", function()
         panel:NumSlider("Ghost Amount", "cl_boidfish_ghost_amount", 0, 10, 0)
         panel:CheckBox("Enable Uniform distances between fish", "cl_boidfish_ghost_distances_uniform")
         panel:NumSlider("Ghost Minimum Separation Dist", "cl_boidfish_ghost_distances", 10, 100, 0)
-        
+
         panel:NumSlider("Global Grid Cell Size", "sv_boids_master_cell_size", 50, 2000, 0)
     end )
 end )
@@ -254,3 +254,77 @@ for _,v in ipairs(callback_convar_fish) do
         end
     end)
 end
+
+-- Nest settings live in the context menu: hold C, then right-click a nest.
+local NEST_CLASSES = {
+    boidnest = true,
+    boidnest_fish = true,
+    boidnest_ichthyosaur = true,
+}
+
+properties.Add("boidnest_settings", {
+    MenuLabel = "Boid Nest Settings",
+    Order = 500,
+    MenuIcon = "icon16/cog.png",
+
+    Filter = function(self, ent, ply)
+        return IsValid(ent) and NEST_CLASSES[ent:GetClass()] == true
+    end,
+
+    Action = function(self, ent)
+        if not IsValid(ent) then return end
+        if IsValid(self.NestFrame) then self.NestFrame:Remove() end
+
+        local frame = vgui.Create("DFrame")
+        frame:SetSize(360, 320)
+        frame:SetTitle("Boid Nest Settings")
+        frame:Center()
+        frame:MakePopup()
+        self.NestFrame = frame
+
+        local form = vgui.Create("DForm", frame)
+        form:Dock(FILL)
+        form:SetName("This Nest")
+        form:Help("Settings apply to this nest only.")
+
+        -- Sliders/combos are not convar-bound; they're seeded from this nest's values.
+        local popSlider = form:NumSlider("Target Population", nil, 0, 200, 0)
+        popSlider:SetValue(ent:GetPopulation())
+
+        local radSlider = form:NumSlider("Spawn Radius", nil, 50, 5000, 0)
+        radSlider:SetValue(ent:GetRadius())
+
+        local intSlider = form:NumSlider("Refill Interval (sec)", nil, 0.5, 30, 1)
+        intSlider:SetValue(ent:GetInterval())
+
+        local tickSlider = form:NumSlider("Max Spawns Per Check", nil, 1, 50, 0)
+        tickSlider:SetValue(ent:GetMaxPerTick())
+
+        local typebox = form:ComboBox("Nest Type")
+        typebox:AddChoice("boids")
+        typebox:AddChoice("boidfish")
+        typebox:AddChoice("boidichthyosaur")
+        typebox:SetValue(ent:GetMobClass())
+
+        local modelbox = form:ComboBox("Nest Model")
+        modelbox:AddChoice("models/props_junk/wood_crate001a.mdl")
+        modelbox:AddChoice("models/hunter/misc/sphere2x2.mdl")
+        modelbox:AddChoice("models/props_junk/cardboard_box001a.mdl")
+        modelbox:SetValue(ent:GetModel())
+
+        local apply = form:Button("Apply")
+        apply.DoClick = function()
+            if not IsValid(ent) then frame:Remove() return end
+
+            net.Start("boidnest_set")
+                net.WriteEntity(ent)
+                net.WriteUInt(math.Clamp(math.Round(popSlider:GetValue()), 0, 200), 16)
+                net.WriteFloat(radSlider:GetValue())
+                net.WriteFloat(intSlider:GetValue())
+                net.WriteUInt(math.Clamp(math.Round(tickSlider:GetValue()), 1, 50), 8)
+                net.WriteString(typebox:GetValue())
+                net.WriteString(modelbox:GetValue())
+            net.SendToServer()
+        end
+    end,
+})

@@ -8,7 +8,10 @@ function ENT:Initialize()
     self:PhysicsInit(SOLID_BBOX)
     self:SetMoveType(MOVETYPE_NOCLIP)
     self:SetSolid(SOLID_BBOX)
-    self:SetCollisionGroup(COLLISION_GROUP_DEBRIS)
+    -- Solid to the world, but the ShouldCollide rule keeps boids ghostly to players
+    -- and each other while still letting projectiles strike them.
+    self:SetCollisionGroup(COLLISION_GROUP_NONE)
+    self:SetCustomCollisionCheck(true)
     
     self:SetAngles(Angle(math.random(-180, 180), math.random(-180, 180), 0))
     self:SetCycle( math.Rand(0,1) )
@@ -40,6 +43,31 @@ function ENT:Die(attacker, dmginfo)
     end
     
     SafeRemoveEntityDelayed(self, 0.1)
+end
+
+-- A projectile struck us (the ShouldCollide rule only lets projectiles touch boids).
+-- Route it through TakeDamageInfo so each species' own damage handling applies.
+function ENT:Touch( ent )
+    if self:GetDead() then return end
+    if not IsValid(ent) then return end
+    if BoidShared.BoidClasses[ent:GetClass()] then return end
+    if not BoidShared.IsProjectile(ent) then return end
+
+    local attacker = IsValid(ent.Shooter) and ent.Shooter or nil
+    if not attacker and ent.GetOwner then
+        local owner = ent:GetOwner()
+        if IsValid(owner) then attacker = owner end
+    end
+
+    local dmg = DamageInfo()
+    dmg:SetDamage(math.Clamp(ent:GetVelocity():Length() / 25, 25, 300))
+    dmg:SetAttacker(IsValid(attacker) and attacker or ent)
+    dmg:SetInflictor(ent)
+    dmg:SetDamageType(DMG_GENERIC)
+    dmg:SetDamagePosition(self:GetPos())
+    dmg:SetDamageForce(ent:GetVelocity() * 0.1)
+
+    self:TakeDamageInfo(dmg)
 end
 
 function ENT:NotMyNeighbors( ent )

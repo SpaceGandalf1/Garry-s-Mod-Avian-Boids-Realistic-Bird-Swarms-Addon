@@ -125,3 +125,33 @@ function BoidShared.SpawnSchool(ply, tr, className, opts)
         undo.SetPlayer(ply)
     undo.Finish()
 end
+
+-- Combat --------------------------------------------------------------------
+
+-- Every flock class; used for friend checks and collision filtering.
+BoidShared.BoidClasses = {
+    boids = true,
+    boidfish = true,
+    boidichthyosaur = true,
+}
+
+-- A projectile (or any fast-moving object) that should be able to strike a boid.
+function BoidShared.IsProjectile(ent)
+    if not IsValid(ent) then return false end
+    if ent:GetCollisionGroup() == COLLISION_GROUP_PROJECTILE then return true end
+    return ent:GetVelocity():LengthSqr() > (600 * 600)
+end
+
+-- Boids are otherwise ghostly (they don't shove players or each other), but we make
+-- them solid to projectiles so weapons like the hunting bow can actually hit them.
+-- Only fires for entities with SetCustomCollisionCheck(true) - i.e. the boids.
+hook.Add("ShouldCollide", "BoidProjectileCollisions", function(a, b)
+    if not (IsValid(a) and IsValid(b)) then return end
+
+    local aBoid = BoidShared.BoidClasses[a:GetClass()]
+    local bBoid = BoidShared.BoidClasses[b:GetClass()]
+    if not aBoid and not bBoid then return end
+    if aBoid and bBoid then return false end -- flockmates never collide
+
+    return BoidShared.IsProjectile(aBoid and b or a)
+end)
