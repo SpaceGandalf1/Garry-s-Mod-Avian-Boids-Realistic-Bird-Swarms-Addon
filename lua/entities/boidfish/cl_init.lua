@@ -1,10 +1,7 @@
 include("shared.lua")
 
 function ENT:CustomInitialize()
-    self.GhostAmount = function() local cv = GetConVar("cl_boidfish_ghost_amount"); return cv and cv:GetInt() or 0 end
-    self.GhostDist = function() local cv = GetConVar("cl_boidfish_ghost_distances"); return cv and cv:GetInt() or 50 end
-    self.GhostDistUniform = function() local cv = GetConVar("cl_boidfish_ghost_distances_uniform"); return cv and cv:GetBool() or true end
-    self.BaseSpeed = function() local cv = GetConVar("sv_boidfish_speed"); return cv and cv:GetFloat() or 300 end
+    BoidShared.SetupGhostConVars(self, "boidfish", 300)
 end
 
 function ENT:CustomMakeRagdoll()

@@ -2,24 +2,7 @@ AddCSLuaFile("cl_init.lua")
 AddCSLuaFile("shared.lua")
 include("shared.lua")
 
-local DELETE_ON_ESCAPE_REALITY = CreateConVar( "sv_boids_delete_on_escape_reality", "0", FCVAR_NONE, "Delete the boid when he's getting out of the world", 0, 1 )
-local COLLISION_RULE = CreateConVar( "sv_boids_collision_avoidances", "1", FCVAR_NONE, "", 0, 1 )
-local ALIGNMENT_RULE = CreateConVar( "sv_boids_alignment", "1", FCVAR_NONE, "", 0, 1 )
-local COHESION_RULE = CreateConVar( "sv_boids_cohesion", "1", FCVAR_NONE, "", 0, 1 )
-local NOISE_FACTOR = CreateConVar( "sv_boids_noise_factor", "0.5", FCVAR_NONE, "", 0, 1 )
-local MIN_DIST = CreateConVar( "sv_boids_separation_distances", "5", FCVAR_NONE, "", 2, 50 )
-local SPEED = CreateConVar( "sv_boids_speed", "600", {FCVAR_REPLICATED, FCVAR_ARCHIVE}, "", 0, 1000 )
-local SPAWN_NUMBER = CreateConVar( "sv_boids_spawn_number", "1", FCVAR_NONE, "", 1, 100 )
-local TRACE_LEN = CreateConVar( "sv_boids_trace_lengh", "500", FCVAR_NONE, "", 10, 1000 )
-local BOIDS_MODEL = CreateConVar("sv_boids_model", "models/crow.mdl", {FCVAR_REPLICATED, FCVAR_ARCHIVE})
-local ALIGNMENT_FACTOR = CreateConVar( "sv_boids_alignment_factor", "0.8", FCVAR_NONE, "", 1, 10 )
-local COHESION_FACTOR = CreateConVar( "sv_boids_cohesion_factor", "1.0", FCVAR_NONE, "", 1, 10 )
-local SEPARATION_FACTOR = CreateConVar( "sv_boids_separation_factor", "1.5", FCVAR_NONE, "", 1, 10 )
-local ORBIT_FACTOR = CreateConVar( "sv_boids_orbit_factor", "1.5", FCVAR_NONE, "", 0, 10 )
-local ORBIT_DISTANCE = CreateConVar( "sv_boids_orbit_distance", "200", FCVAR_NONE, "", 10, 2000 )
-local DISTANCE_CHECK = CreateConVar( "sv_boids_distance_check", "1", FCVAR_NONE, "", 0, 1 )
-local DISTANCE_CHECK_VALUE = CreateConVar( "sv_boids_distance_check_value", "250", FCVAR_NONE, "", 100, 2000 )
-local MINSMAXS_BOUNDS = CreateConVar( "sv_boids_mins_maxs_bounds", "20", FCVAR_NONE, "", 5, 50 )
+local CV = BoidShared.CreateConVars("boids")
 
 local ATTACKING = CreateConVar("sv_boids_attacking", "1", {FCVAR_REPLICATED, FCVAR_ARCHIVE}, "Toggle boids hunting and attacking", 0, 1)
 local HUNT_FISH = CreateConVar("sv_boids_hunt_fish", "1", {FCVAR_REPLICATED, FCVAR_ARCHIVE}, "Toggle boids hunting boidfish", 0, 1)
@@ -36,7 +19,7 @@ local BOID_SOUNDS = {
         die = { "ambient/creatures/seagull_pain1.wav", "ambient/creatures/seagull_pain2.wav", "ambient/creatures/seagull_pain3.wav" }
     },
     ["models/pigeon.mdl"] = {
-        idle = { "npc/crow/idle1.wav" }, 
+        idle = { "npc/crow/idle1.wav" },
         die = { "npc/crow/die1.wav" }
     }
 }
@@ -44,15 +27,15 @@ local BOID_SOUNDS = {
 function ENT:SetBoidState(newState)
     if self.CurrentAnimState == newState then return end
     self.CurrentAnimState = newState
-    
+
     local seqName = self:GetBoidAnim(newState)
-    
+
     if self:LookupSequence(seqName) == -1 then
-        seqName = self:GetBoidAnim("fly") 
+        seqName = self:GetBoidAnim("fly")
     end
-    
+
     self:ResetSequence(seqName)
-    
+
     if newState == "soar" then
         self:SetPlaybackRate(0.1)
     else
@@ -61,20 +44,20 @@ function ENT:SetBoidState(newState)
 end
 
 function ENT:CustomInitialize()
-    self:SetModel(BOIDS_MODEL:GetString())
+    self:SetModel(CV.MODEL:GetString())
     self.CurrentAnimState = ""
     self:SetBoidState("fly")
 
-    local bounds = MINSMAXS_BOUNDS:GetFloat()
+    local bounds = CV.MINSMAXS_BOUNDS:GetFloat()
     local mins = -Vector(bounds,bounds,bounds)
     local maxs = -mins
     self:SetCollisionBounds( mins, maxs )
 
     self.mins, self.maxs = Vector( -20, -20, -20 ), Vector( 20, 20, 20 )
-    
-    self.UseDistanceCheck = DISTANCE_CHECK:GetBool()
-    self.DistanceCheckSqr = math.pow(DISTANCE_CHECK_VALUE:GetInt(), 2)
-    self.TraceLength = TRACE_LEN:GetFloat()
+
+    self.UseDistanceCheck = CV.DISTANCE_CHECK:GetBool()
+    self.DistanceCheckSqr = math.pow(CV.DISTANCE_CHECK_VALUE:GetInt(), 2)
+    self.TraceLength = CV.TRACE_LEN:GetFloat()
     self.IsWaterBoid = false
 end
 
@@ -86,14 +69,7 @@ function ENT:CustomDie(attacker, dmginfo)
 end
 
 function ENT:CustomThink()
-    if DELETE_ON_ESCAPE_REALITY:GetBool() and not self:IsInWorld() then 
-        self:Remove() 
-        return true
-    end 
-    
-    self.UseDistanceCheck = DISTANCE_CHECK:GetBool()
-    self.DistanceCheckSqr = math.pow(DISTANCE_CHECK_VALUE:GetInt(), 2)
-    self.TraceLength = TRACE_LEN:GetFloat()
+    if BoidShared.PreThink(self, CV) then return true end
 
     local pos = self:GetPos()
 
@@ -104,21 +80,21 @@ function ENT:CustomThink()
             return true
         else
             self.LandedUntil = nil
-            self.TakeoffUntil = CurTime() + 0.5 
-            
+            self.TakeoffUntil = CurTime() + 0.5
+
             self:SetBoidState("takeoff")
-            self:SetPos(pos + Vector(0, 0, 20)) 
+            self:SetPos(pos + Vector(0, 0, 20))
             local takeoffDir = Vector(math.Rand(-1, 1), math.Rand(-1, 1), 1):GetNormalized()
             self:SetAngles(takeoffDir:Angle())
-            
+
             self:NextThink(CurTime())
-            return true 
+            return true
         end
     end
-    
+
     if not self.NextIdleSound or CurTime() > self.NextIdleSound then
-        self.NextIdleSound = CurTime() + math.Rand(2, 6) 
-        if math.random(1, 4) == 1 then 
+        self.NextIdleSound = CurTime() + math.Rand(2, 6)
+        if math.random(1, 4) == 1 then
             local sounds = BOID_SOUNDS[string.lower(self:GetModel() or "")]
             if sounds and sounds.idle then
                 self:EmitSound(sounds.idle[math.random(1, #sounds.idle)], 65, math.random(95, 105))
@@ -128,24 +104,24 @@ function ENT:CustomThink()
 
     if ATTACKING:GetBool() then
         if not self.NextMeleeTick or CurTime() > self.NextMeleeTick then
-            self.NextMeleeTick = CurTime() + 0.5 
+            self.NextMeleeTick = CurTime() + 0.5
 
-            local hitRadius = 175 
+            local hitRadius = 175
             local nearbyEnts = ents.FindInSphere(pos, hitRadius)
-            
+
             for _, hitEnt in ipairs(nearbyEnts) do
                 if IsValid(hitEnt) and hitEnt != self and hitEnt:GetClass() != self:GetClass() then
                     if hitEnt:GetClass() == "boidfish" and HUNT_FISH:GetBool() then
                         if hitEnt.Die then hitEnt:Die(self, DamageInfo()) else hitEnt:Remove() end
                         self:EmitSound("npc/crow/alert2.wav", 75, 100)
-                        self.HuntingTarget = nil 
+                        self.HuntingTarget = nil
                     elseif (hitEnt:IsPlayer() or hitEnt:IsNPC() or hitEnt:IsNextBot()) and HURT_PLAYERS:GetBool() then
                         local dmg = DamageInfo()
-                        dmg:SetDamage(5) 
+                        dmg:SetDamage(5)
                         dmg:SetAttacker(self)
                         dmg:SetInflictor(self)
                         dmg:SetDamageType(DMG_SLASH)
-                        
+
                         hitEnt:TakeDamageInfo(dmg)
                         self:EmitSound("physics/flesh/flesh_impact_bullet" .. math.random(1, 3) .. ".wav", 65, math.random(95, 105))
                     end
@@ -155,12 +131,12 @@ function ENT:CustomThink()
 
         if HUNT_FISH:GetBool() then
             if not self.NextVisionTick or CurTime() > self.NextVisionTick then
-                self.NextVisionTick = CurTime() + 60.0 
-                
+                self.NextVisionTick = CurTime() + 60.0
+
                 if not IsValid(self.HuntingTarget) or self.HuntingTarget:GetDead() then
                     self.HuntingTarget = nil
-                    
-                    local sightRadius = 500 
+
+                    local sightRadius = 500
                     local seenEnts = ents.FindInSphere(pos, sightRadius)
                     local closestDist = math.huge
                     local bestTarget = nil
@@ -168,7 +144,7 @@ function ENT:CustomThink()
                     for _, ent in ipairs(seenEnts) do
                         if IsValid(ent) and ent:GetClass() == "boidfish" and not ent:GetDead() then
                             local dirToTarget = (ent:GetPos() - pos):GetNormalized()
-                            
+
                             if self:GetForward():Dot(dirToTarget) > 0 then
                                 local dist = pos:DistToSqr(ent:GetPos())
                                 if dist < closestDist then
@@ -178,7 +154,7 @@ function ENT:CustomThink()
                             end
                         end
                     end
-                    
+
                     if bestTarget then
                         self.HuntingTarget = bestTarget
                     end
@@ -204,20 +180,20 @@ function ENT:CustomThink()
     if self.LandingTarget then
         if CurTime() > self.LandingTimeout then
             self.LandingTarget = nil
-            self:SetBoidState("fly") 
+            self:SetBoidState("fly")
         elseif pos:DistToSqr(self.LandingTarget) < (45 * 45) then
             self.LandedUntil = CurTime() + math.Rand(3, 7)
             self.NextLandAllowed = self.LandedUntil + math.Rand(15, 30)
             self.LandingTarget = nil
-            
+
             local snapTr = util.TraceLine({
                 start = pos, endpos = pos - Vector(0,0,50), mask = MASK_SOLID, filter = self
             })
             if snapTr.Hit then self:SetPos(snapTr.HitPos) else self:SetPos(pos) end
-            
-            self:SetAngles(Angle(0, self:GetAngles().y, 0)) 
-            self:SetBoidState("idle") 
-            
+
+            self:SetAngles(Angle(0, self:GetAngles().y, 0))
+            self:SetBoidState("idle")
+
             self:NextThink(CurTime() + 0.1)
             return true
         else
@@ -240,9 +216,9 @@ function ENT:CustomThink()
                 self:SetBoidState(math.random(1, 2) == 1 and "soar" or "fly")
             end
         end
-        
+
         if not self.NextLandAllowed or CurTime() > self.NextLandAllowed then
-            local landDist = TRACE_LEN:GetFloat() * 1.2
+            local landDist = CV.TRACE_LEN:GetFloat() * 1.2
             local downRay = util.TraceLine({
                 start = pos,
                 endpos = pos - Vector(0, 0, landDist),
@@ -253,74 +229,50 @@ function ENT:CustomThink()
             if downRay.Hit and downRay.HitNormal.z > 0.7 then
                 if bit.band(util.PointContents(downRay.HitPos), CONTENTS_WATER) != CONTENTS_WATER then
                     self.LandingTarget = downRay.HitPos
-                    self.LandingTimeout = CurTime() + 4 
+                    self.LandingTimeout = CurTime() + 4
                 end
             end
         end
     end
 
-    local rawNeighbors = self:GetNearByOptimized()
-    local validNeighbors = {}
-
-    for _, ent in ipairs(rawNeighbors) do
-        local diff = ent:GetPos() - pos
-        local distSqr = diff:LengthSqr()
-        local toNeighbor = diff:GetNormalized()
-        local dot = self:GetForward():Dot(toNeighbor)
-    
-        if dot > 0 then 
-            table.insert(validNeighbors, {ent = ent, dist = math.sqrt(distSqr)})
-        end
-    end
+    local validNeighbors = BoidShared.GatherForwardNeighbors(self, pos)
 
     local separation, alignment, cohesion = BoidMath.GetFlockingSteer(
-        self, validNeighbors, 
-        COLLISION_RULE:GetBool(), ALIGNMENT_RULE:GetBool(), COHESION_RULE:GetBool(), 
-        MIN_DIST:GetFloat(), pos, self:GetForward()
+        self, validNeighbors,
+        CV.COLLISION_RULE:GetBool(), CV.ALIGNMENT_RULE:GetBool(), CV.COHESION_RULE:GetBool(),
+        CV.MIN_DIST:GetFloat(), pos, self:GetForward()
     )
-    
-    local entities = BoidGrid.CachedOrbits
-    local orbitForce = Vector()
-    if #entities >= 1 then
-        table.sort( entities, function( a, b ) return pos:Distance2DSqr(a:GetPos()) < pos:Distance2DSqr(b:GetPos()) end)
-        local targetPos = entities[1]:GetPos()
-        local distToTarget = pos:Distance(targetPos)
 
-        if distToTarget > ORBIT_DISTANCE:GetInt() then
-            local dirToTarget = (targetPos - pos):GetNormalized()
-            local orbitDir = dirToTarget:Cross(Vector(0, 0, 1)):GetNormalized()
-            orbitForce = (dirToTarget * 0.3) + (orbitDir * 1.0)
-        end
-    end
-    
-    local steer = (separation * SEPARATION_FACTOR:GetFloat()) + 
-                  (alignment * ALIGNMENT_FACTOR:GetFloat()) + 
-                  (cohesion * COHESION_FACTOR:GetFloat()) + 
-                  (orbitForce * ORBIT_FACTOR:GetFloat())
+    local orbitForce = BoidShared.GetOrbitForce(pos, CV.ORBIT_DISTANCE:GetInt())
+
+    local steer = (separation * CV.SEPARATION_FACTOR:GetFloat()) +
+                  (alignment * CV.ALIGNMENT_FACTOR:GetFloat()) +
+                  (cohesion * CV.COHESION_FACTOR:GetFloat()) +
+                  (orbitForce * CV.ORBIT_FACTOR:GetFloat())
 
     if self.LandingTarget then
         local dirToTarget = (self.LandingTarget - pos):GetNormalized()
-        steer = dirToTarget * 10 
+        steer = dirToTarget * 10
     elseif IsValid(self.HuntingTarget) then
         local dirToTarget = (self.HuntingTarget:GetPos() - pos):GetNormalized()
         steer = steer + (dirToTarget * 15)
     else
-        steer = steer + VectorRand() * NOISE_FACTOR:GetFloat()
+        steer = steer + VectorRand() * CV.NOISE_FACTOR:GetFloat()
     end
 
     local lookAheadDist = IsValid(self.HuntingTarget) and 50 or 150
     local lookAheadPos = pos + self:GetForward() * lookAheadDist
-    
+
     if bit.band(util.PointContents(lookAheadPos), CONTENTS_WATER) == CONTENTS_WATER then
         if self.LandingTarget then
-            self.LandingTarget = nil 
+            self.LandingTarget = nil
             self:SetBoidState("fly")
         end
         if IsValid(self.HuntingTarget) then
-            self.HuntingTarget = nil 
+            self.HuntingTarget = nil
             self:SetBoidState("fly")
         end
-        steer = steer + Vector(0, 0, 20) 
+        steer = steer + Vector(0, 0, 20)
     end
 
     local heightTr = util.TraceLine({
@@ -329,9 +281,9 @@ function ENT:CustomThink()
         mask = MASK_SOLID,
         filter = function(ent) return self:NotMyNeighbors(ent) end
     })
-    
+
     if not heightTr.Hit then
-        steer = steer + Vector(0, 0, -15) 
+        steer = steer + Vector(0, 0, -15)
     end
 
     if not self.LandingTarget then
@@ -343,11 +295,11 @@ function ENT:CustomThink()
             mask = MASK_SOLID_BRUSHONLY,
             filter = self
         })
-        
+
         if floorTr.Hit then
             local pushForce = (1 - floorTr.Fraction) * 40
             steer = steer + Vector(0, 0, pushForce)
-            
+
             if self:GetForward().z < -0.3 then
                 steer = steer + Vector(0, 0, 20)
             end
@@ -355,9 +307,9 @@ function ENT:CustomThink()
     end
 
     if steer:Length() > 1 then steer:Normalize() end
-    
-    local traceDist = self.LandingTarget and 30 or TRACE_LEN:GetFloat()
-    
+
+    local traceDist = self.LandingTarget and 30 or CV.TRACE_LEN:GetFloat()
+
     local forwardRay = util.TraceLine({
         start = pos,
         endpos = pos + self:GetForward() * traceDist,
@@ -370,11 +322,11 @@ function ENT:CustomThink()
     else
         debugoverlay.Line( pos, pos + self:GetForward() * traceDist, 0.05, Color( 0, 255, 255, 1), false )
     end
-    
+
     if forwardRay.Hit then
         local escapeDir = self:ObstacleRay()
         local sub = (1 - forwardRay.Fraction)
-        local repelPower = sub * 2 
+        local repelPower = sub * 2
         local repulsion = forwardRay.HitNormal * repelPower
         local finalEscape = (escapeDir + repulsion):GetNormalized()
 
@@ -387,12 +339,12 @@ function ENT:CustomThink()
     end
 
     if steer:Length() > 1 then steer:Normalize() end
-    
-    local currentSpeed = self.LandingTarget and (SPEED:GetFloat() * 0.6) or SPEED:GetFloat()
-    if IsValid(self.HuntingTarget) then currentSpeed = SPEED:GetFloat() * 1.5 end
-    
+
+    local currentSpeed = self.LandingTarget and (CV.SPEED:GetFloat() * 0.6) or CV.SPEED:GetFloat()
+    if IsValid(self.HuntingTarget) then currentSpeed = CV.SPEED:GetFloat() * 1.5 end
+
     local finalDir = (self:GetForward() + steer * 0.1):GetNormalized()
-    
+
     self:SetAngles(finalDir:Angle())
     self:SetPos(pos + finalDir * (currentSpeed * FrameTime()))
     self:NextThink(CurTime())
@@ -403,15 +355,10 @@ function ENT:CustomThink()
 end
 
 function ENT:SpawnFunction(ply, tr, ClassName)
-    if not tr.Hit then return end
-    undo.Create("Boids")
-        for i = 1, SPAWN_NUMBER:GetInt() do
-            local ent = ents.Create(ClassName)
-            ent:SetPos(tr.HitPos + tr.HitNormal * 1000 + VectorRand() * 30)
-            ent:Spawn()
-            ent:Activate()
-            undo.AddEntity(ent)
-        end
-        undo.SetPlayer(ply)
-    undo.Finish()
+    BoidShared.SpawnSchool(ply, tr, ClassName, {
+        undoName = "Boids",
+        normalOffset = 1000,
+        count = CV.SPAWN_NUMBER:GetInt(),
+        position = function(spawnPos) return spawnPos + VectorRand() * 30 end,
+    })
 end

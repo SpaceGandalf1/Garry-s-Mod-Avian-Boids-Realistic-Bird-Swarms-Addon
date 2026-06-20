@@ -289,20 +289,10 @@ function ENT:CustomThink()
 end
 
 function ENT:SpawnFunction(ply, tr, ClassName)
-    if not tr.Hit then return end
-    local spawnPos = tr.HitPos + tr.HitNormal * 30
-    
-    if bit.band(util.PointContents(spawnPos), CONTENTS_WATER) != CONTENTS_WATER then
-        ply:ChatPrint("The Ichthyosaur must be spawned in deep water!")
-        return
-    end
-
-    undo.Create("Ichthyosaur")
-        local ent = ents.Create(ClassName)
-        ent:SetPos(spawnPos + Vector(0,0,50))
-        ent:Spawn()
-        ent:Activate()
-        undo.AddEntity(ent)
-        undo.SetPlayer(ply)
-    undo.Finish()
+    BoidShared.SpawnSchool(ply, tr, ClassName, {
+        undoName = "Ichthyosaur",
+        requireWater = true,
+        waterMessage = "The Ichthyosaur must be spawned in deep water!",
+        position = function(spawnPos) return spawnPos + Vector(0, 0, 50) end,
+    })
 end
